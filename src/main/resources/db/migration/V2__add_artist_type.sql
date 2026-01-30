@@ -1,0 +1,5 @@
+ALTER TABLE artists ADD COLUMN type VARCHAR(20) NOT NULL DEFAULT 'CANTOR';
+
+ALTER TABLE artists
+    ADD CONSTRAINT chk_artists_type
+        CHECK (type IN ('CANTOR', 'BANDA'));
