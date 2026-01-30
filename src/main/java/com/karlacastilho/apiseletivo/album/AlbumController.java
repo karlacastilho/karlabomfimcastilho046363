@@ -28,7 +28,6 @@ public class AlbumController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public Album create(@Valid @RequestBody AlbumCreateRequest req) {
-
         List<Artist> artists = artistRepo.findAllById(req.getArtistIds());
         if (artists.size() != req.getArtistIds().size()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Um ou mais artistIds não existem");
@@ -36,14 +35,9 @@ public class AlbumController {
 
         Album album = new Album();
         album.setTitle(req.getTitle());
-
-        // salvar primeiro para garantir ID
         Album saved = albumRepo.save(album);
 
-        // vincular N:N pelo lado do Artist (dono do relacionamento)
-        Set<Album> singleton = new HashSet<>();
-        singleton.add(saved);
-
+        // vincular N:N: atualizar pelo lado de Artist (dono do relacionamento)
         for (Artist a : artists) {
             a.getAlbums().add(saved);
         }
@@ -58,5 +52,62 @@ public class AlbumController {
             return albumRepo.findByArtists_Id(artistId, pageable);
         }
         return albumRepo.findAll(pageable);
+    }
+
+    @PutMapping("/{id}")
+    public Album update(@PathVariable Long id, @Valid @RequestBody AlbumUpdateRequest req) {
+        Album album = albumRepo.findWithArtistsById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Álbum não encontrado"));
+
+        // Atualiza título
+        album.setTitle(req.getTitle());
+
+        // Atualiza vínculos com artistas
+        syncArtists(album, req.getArtistIds());
+
+        return albumRepo.save(album);
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable Long id) {
+        Album album = albumRepo.findWithArtistsById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Álbum não encontrado"));
+
+        // remover relações N:N antes de deletar o álbum (evita constraint na artist_album)
+        for (Artist a : new HashSet<>(album.getArtists())) {
+            a.getAlbums().remove(album);
+        }
+        artistRepo.saveAll(album.getArtists());
+
+        albumRepo.delete(album);
+    }
+
+    private void syncArtists(Album album, List<Long> artistIds) {
+        List<Artist> newArtists = artistRepo.findAllById(artistIds);
+        if (newArtists.size() != artistIds.size()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Um ou mais artistIds não existem");
+        }
+
+        Set<Artist> current = album.getArtists();
+        Set<Artist> desired = new HashSet<>(newArtists);
+
+        // remove os que não devem mais estar
+        for (Artist a : new HashSet<>(current)) {
+            if (!desired.contains(a)) {
+                a.getAlbums().remove(album);
+                current.remove(a);
+            }
+        }
+
+        // adiciona os novos
+        for (Artist a : desired) {
+            if (!current.contains(a)) {
+                a.getAlbums().add(album);
+                current.add(a);
+            }
+        }
+
+        artistRepo.saveAll(desired);
     }
 }

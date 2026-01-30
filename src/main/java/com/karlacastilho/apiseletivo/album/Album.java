@@ -34,4 +34,14 @@ public class Album {
     public void setCoverObjectKey(String coverObjectKey) { this.coverObjectKey = coverObjectKey; }
 
     public Set<Artist> getArtists() { return artists; }
+
+    public void addArtist(Artist artist) {
+        this.artists.add(artist);
+        artist.getAlbums().add(this);
+    }
+
+    public void removeArtist(Artist artist) {
+        this.artists.remove(artist);
+        artist.getAlbums().remove(this);
+    }
 }

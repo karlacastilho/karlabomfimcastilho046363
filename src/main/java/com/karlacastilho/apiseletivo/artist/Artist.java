@@ -39,4 +39,15 @@ public class Artist {
 
     public ArtistType getType() { return type; }
     public void setType(ArtistType type) { this.type = type; }
+
+
+    public void addAlbum(Album album) {
+        this.albums.add(album);
+        album.getArtists().add(this);
+    }
+
+    public void removeAlbum(Album album) {
+        this.albums.remove(album);
+        album.getArtists().remove(this);
+    }
 }
