@@ -10,6 +10,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.MediaType;
+
 
 import java.time.Duration;
 import java.util.HashSet;
@@ -103,8 +105,11 @@ public class AlbumController {
     // CAPA (MinIO)
     // -------------------------
 
-    @PostMapping("/{id}/cover")
-    public Album uploadCover(@PathVariable Long id, @RequestParam("file") MultipartFile file) {
+    @PutMapping(value = "/{id}/cover", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public Album updateCover(
+            @PathVariable Long id,
+            @RequestPart("file") MultipartFile file
+    ) {
         Album album = albumRepo.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Álbum não encontrado"));
 
