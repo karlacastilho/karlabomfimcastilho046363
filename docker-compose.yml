@@ -36,8 +36,11 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/music
       SPRING_DATASOURCE_USERNAME: music
       SPRING_DATASOURCE_PASSWORD: music
+      extra_hosts:
+        "host.docker.internal:host-gateway"
 
-      MINIO_URL: http://minio:9000
+      MINIO_URL: http://host.docker.internal:9000
+      MINIO_PUBLIC_URL: http://host.docker.internal:9000
       MINIO_ACCESS_KEY: minio
       MINIO_SECRET_KEY: minio123
       MINIO_BUCKET: album-covers

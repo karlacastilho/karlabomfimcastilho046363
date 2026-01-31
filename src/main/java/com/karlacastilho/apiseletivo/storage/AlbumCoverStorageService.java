@@ -16,10 +16,14 @@ public class AlbumCoverStorageService {
 
     private final MinioClient minio;
     private final String bucket;
+    private final String publicUrl;
 
-    public AlbumCoverStorageService(MinioClient minio, @Value("${minio.bucket}") String bucket) {
+    public AlbumCoverStorageService(MinioClient minio,
+                                    @Value("${minio.bucket}") String bucket,
+                                    @Value("${minio.publicUrl}") String publicUrl) {
         this.minio = minio;
         this.bucket = bucket;
+        this.publicUrl = publicUrl;
     }
 
     public String uploadCover(Long albumId, MultipartFile file) {
@@ -47,7 +51,6 @@ public class AlbumCoverStorageService {
 
     public String presignedGetUrl(String objectKey, Duration expiry) {
         try {
-            // MinIO geralmente suporta até 7 dias. 30 min é tranquilo.
             int seconds = (int) expiry.getSeconds();
             return minio.getPresignedObjectUrl(
                     GetPresignedObjectUrlArgs.builder()

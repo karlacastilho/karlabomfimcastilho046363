@@ -22,7 +22,7 @@ management:
         include: health,info
 
 minio:
-  url: ${MINIO_URL:http://localhost:9000}
+  publicUrl: ${MINIO_PUBLIC_URL:http://localhost:9000}
   accessKey: ${MINIO_ACCESS_KEY:minio}
   secretKey: ${MINIO_SECRET_KEY:minio123}
   bucket: ${MINIO_BUCKET:album-covers}
