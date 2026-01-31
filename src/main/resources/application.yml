@@ -26,3 +26,9 @@ minio:
   accessKey: ${MINIO_ACCESS_KEY:minio}
   secretKey: ${MINIO_SECRET_KEY:minio123}
   bucket: ${MINIO_BUCKET:album-covers}
+
+security:
+  jwt:
+    secret: ${JWT_SECRET:change-me-super-secret-change-me-super-secret}
+    accessTokenMinutes: 5
+    refreshTokenDays: 7
