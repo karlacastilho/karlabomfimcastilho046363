@@ -99,4 +99,26 @@ public class AlbumCoverStorageService {
         if (lower.endsWith(".jpeg")) return ".jpeg";
         return "";
     }
+
+    public String uploadAlbumImage(Long albumId, MultipartFile file) {
+        validateImage(file);
+        ensureBucketExists();
+
+        String ext = guessExtension(file.getOriginalFilename());
+        String objectKey = "albums/" + albumId + "/images/" + UUID.randomUUID() + ext;
+
+        try (InputStream in = file.getInputStream()) {
+            minio.putObject(
+                    PutObjectArgs.builder()
+                            .bucket(bucket)
+                            .object(objectKey)
+                            .stream(in, file.getSize(), -1)
+                            .contentType(file.getContentType())
+                            .build()
+            );
+            return objectKey;
+        } catch (Exception e) {
+            throw new RuntimeException("Falha ao enviar arquivo para o MinIO", e);
+        }
+    }
 }

@@ -11,6 +11,10 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.MediaType;
+import com.karlacastilho.apiseletivo.album.AlbumImage;
+import com.karlacastilho.apiseletivo.album.AlbumImageRepository;
+import org.springframework.http.MediaType;
+import java.util.stream.Collectors;
 
 
 import java.time.Duration;
@@ -26,13 +30,17 @@ public class AlbumController {
     private final AlbumRepository albumRepo;
     private final ArtistRepository artistRepo;
     private final AlbumCoverStorageService coverStorage;
+    private final AlbumImageRepository albumImageRepo;
+
 
     public AlbumController(AlbumRepository albumRepo,
                            ArtistRepository artistRepo,
-                           AlbumCoverStorageService coverStorage) {
+                           AlbumCoverStorageService coverStorage,
+                           AlbumImageRepository albumImageRepo) {
         this.albumRepo = albumRepo;
         this.artistRepo = artistRepo;
         this.coverStorage = coverStorage;
+        this.albumImageRepo = albumImageRepo;
     }
 
     // -------------------------
@@ -165,4 +173,61 @@ public class AlbumController {
         artistRepo.saveAll(desiredArtists);
         artistRepo.saveAll(currentArtists);
     }
-}
+
+    // PUT /api/v1/albums/{id}/images (multipart, vários arquivos)
+    @PutMapping(value = "/{id}/images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public List<AlbumImage> uploadImages(
+            @PathVariable Long id,
+            @RequestPart("files") List<MultipartFile> files
+    ) {
+        Album album = albumRepo.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Álbum não encontrado"));
+
+        if (files == null || files.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Envie pelo menos 1 arquivo em 'files'");
+        }
+
+        return files.stream().map(f -> {
+            String objectKey = coverStorage.uploadAlbumImage(id, f);
+
+            AlbumImage img = new AlbumImage();
+            img.setAlbum(album);
+            img.setObjectKey(objectKey);
+            return albumImageRepo.save(img);
+        }).collect(Collectors.toList());
+    }
+
+    @GetMapping("/{id}/images")
+    public List<AlbumImage> listImages(@PathVariable Long id) {
+        albumRepo.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Álbum não encontrado"));
+
+        return albumImageRepo.findByAlbum_Id(id);
+    }
+
+    @GetMapping("/{id}/images/{imageId}/url")
+    public Map<String, String> getImageUrl(@PathVariable Long id, @PathVariable Long imageId) {
+        AlbumImage img = albumImageRepo.findById(imageId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Imagem não encontrada"));
+
+        if (!img.getAlbum().getId().equals(id)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Imagem não pertence ao álbum informado");
+        }
+
+        String url = coverStorage.presignedGetUrl(img.getObjectKey(), Duration.ofMinutes(30));
+        return Map.of("url", url);
+    }
+
+    @DeleteMapping("/{id}/images/{imageId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteImage(@PathVariable Long id, @PathVariable Long imageId) {
+        AlbumImage img = albumImageRepo.findById(imageId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Imagem não encontrada"));
+
+        if (!img.getAlbum().getId().equals(id)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Imagem não pertence ao álbum informado");
+        }
+
+        albumImageRepo.delete(img);
+        }
+    }
