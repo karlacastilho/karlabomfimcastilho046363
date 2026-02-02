@@ -6,22 +6,20 @@ import com.karlacastilho.apiseletivo.storage.AlbumCoverStorageService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.http.MediaType;
-import com.karlacastilho.apiseletivo.album.AlbumImage;
-import com.karlacastilho.apiseletivo.album.AlbumImageRepository;
-import org.springframework.http.MediaType;
-import java.util.stream.Collectors;
-
 
 import java.time.Duration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/albums")
@@ -31,7 +29,6 @@ public class AlbumController {
     private final ArtistRepository artistRepo;
     private final AlbumCoverStorageService coverStorage;
     private final AlbumImageRepository albumImageRepo;
-
 
     public AlbumController(AlbumRepository albumRepo,
                            ArtistRepository artistRepo,
@@ -58,11 +55,10 @@ public class AlbumController {
         Album album = new Album();
         album.setTitle(req.getTitle());
 
-        // Salva o álbum primeiro para ter ID
+        // salva primeiro para obter ID
         Album saved = albumRepo.save(album);
 
-        // Como o dono da relação é Artist (@JoinTable fica no Artist),
-        // persistimos o vínculo adicionando o álbum na coleção de cada artista
+        // dono do relacionamento é Artist (JoinTable fica em Artist)
         for (Artist a : artists) {
             a.getAlbums().add(saved);
         }
@@ -71,8 +67,15 @@ public class AlbumController {
         return saved;
     }
 
+    /**
+     * GET público com paginação e ordenação padrão: title ASC
+     * Pode sobrescrever com ?sort=id,desc por exemplo.
+     */
     @GetMapping
-    public Page<Album> list(@RequestParam(required = false) Long artistId, Pageable pageable) {
+    public Page<Album> list(
+            @RequestParam(required = false) Long artistId,
+            @PageableDefault(size = 10, sort = "title", direction = Sort.Direction.ASC) Pageable pageable
+    ) {
         if (artistId != null) {
             return albumRepo.findByArtists_Id(artistId, pageable);
         }
@@ -85,8 +88,6 @@ public class AlbumController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Álbum não encontrado"));
 
         album.setTitle(req.getTitle());
-
-        // sincroniza os vínculos N:N com segurança
         syncArtists(album, req.getArtistIds());
 
         return albumRepo.save(album);
@@ -98,11 +99,11 @@ public class AlbumController {
         Album album = albumRepo.findWithArtistsById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Álbum não encontrado"));
 
-        // Remove vínculos na join table antes de deletar (evita FK)
+        // remove vínculos na join table (evita FK)
         Set<Artist> currentArtists = new HashSet<>(album.getArtists());
         for (Artist a : currentArtists) {
-            a.getAlbums().remove(album); // dono da relação
-            album.getArtists().remove(a);
+            a.getAlbums().remove(album);   // dono
+            album.getArtists().remove(a);  // consistência em memória
         }
         artistRepo.saveAll(currentArtists);
 
@@ -110,14 +111,11 @@ public class AlbumController {
     }
 
     // -------------------------
-    // CAPA (MinIO)
+    // CAPA (1 imagem principal)
     // -------------------------
 
     @PutMapping(value = "/{id}/cover", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public Album updateCover(
-            @PathVariable Long id,
-            @RequestPart("file") MultipartFile file
-    ) {
+    public Album updateCover(@PathVariable Long id, @RequestPart("file") MultipartFile file) {
         Album album = albumRepo.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Álbum não encontrado"));
 
@@ -141,45 +139,11 @@ public class AlbumController {
     }
 
     // -------------------------
-    // Helper: sincronizar N:N
+    // MÚLTIPLAS IMAGENS (requisito "uma ou mais")
     // -------------------------
 
-    private void syncArtists(Album album, List<Long> desiredArtistIds) {
-        List<Artist> desiredArtistsList = artistRepo.findAllById(desiredArtistIds);
-        if (desiredArtistsList.size() != desiredArtistIds.size()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Um ou mais artistIds não existem");
-        }
-
-        Set<Artist> currentArtists = new HashSet<>(album.getArtists());
-        Set<Artist> desiredArtists = new HashSet<>(desiredArtistsList);
-
-        // Remover artistas que não devem mais estar vinculados
-        for (Artist current : currentArtists) {
-            if (!desiredArtists.contains(current)) {
-                current.getAlbums().remove(album);      // dono da relação
-                album.getArtists().remove(current);     // mantém consistência em memória
-            }
-        }
-
-        // Adicionar artistas novos
-        for (Artist desired : desiredArtists) {
-            if (!album.getArtists().contains(desired)) {
-                desired.getAlbums().add(album);         // dono da relação
-                album.getArtists().add(desired);
-            }
-        }
-
-        // Salva os artistas afetados (dono do relacionamento)
-        artistRepo.saveAll(desiredArtists);
-        artistRepo.saveAll(currentArtists);
-    }
-
-    // PUT /api/v1/albums/{id}/images (multipart, vários arquivos)
     @PutMapping(value = "/{id}/images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public List<AlbumImage> uploadImages(
-            @PathVariable Long id,
-            @RequestPart("files") List<MultipartFile> files
-    ) {
+    public List<AlbumImage> uploadImages(@PathVariable Long id, @RequestPart("files") List<MultipartFile> files) {
         Album album = albumRepo.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Álbum não encontrado"));
 
@@ -229,5 +193,39 @@ public class AlbumController {
         }
 
         albumImageRepo.delete(img);
-        }
     }
+
+    // -------------------------
+    // Helper N:N
+    // -------------------------
+
+    private void syncArtists(Album album, List<Long> desiredArtistIds) {
+        List<Artist> desiredArtistsList = artistRepo.findAllById(desiredArtistIds);
+        if (desiredArtistsList.size() != desiredArtistIds.size()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Um ou mais artistIds não existem");
+        }
+
+        Set<Artist> currentArtists = new HashSet<>(album.getArtists());
+        Set<Artist> desiredArtists = new HashSet<>(desiredArtistsList);
+
+        // remove
+        for (Artist current : currentArtists) {
+            if (!desiredArtists.contains(current)) {
+                current.getAlbums().remove(album);  // dono
+                album.getArtists().remove(current);
+            }
+        }
+
+        // adiciona
+        for (Artist desired : desiredArtists) {
+            if (!album.getArtists().contains(desired)) {
+                desired.getAlbums().add(album);     // dono
+                album.getArtists().add(desired);
+            }
+        }
+
+        // salva donos afetados
+        artistRepo.saveAll(desiredArtists);
+        artistRepo.saveAll(currentArtists);
+    }
+}
