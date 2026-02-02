@@ -2,6 +2,7 @@ package com.karlacastilho.apiseletivo.auth;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -19,24 +20,32 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http, JwtAuthFilter jwtAuthFilter) throws Exception {
+
         http
-                // habilita CORS (vai usar o CorsConfigurationSource definido em CorsConfig)
+                // habilita CORS
                 .cors(cors -> {})
-                // API stateless
+                // desabilita CSRF (API stateless)
                 .csrf(csrf -> csrf.disable())
+                // sem sessão
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                // autorização
                 .authorizeHttpRequests(auth -> auth
+
+                        // endpoints públicos
                         .requestMatchers(
                                 "/api/v1/auth/**",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
                                 "/actuator/health"
                         ).permitAll()
+
+                        // TODOS os GET são públicos
+                        .requestMatchers(HttpMethod.GET, "/**").permitAll()
+
+                        // qualquer outra requisição precisa estar autenticada
                         .anyRequest().authenticated()
                 );
 
-        // filtro JWT antes do filtro padrão de login
+        // adiciona filtro JWT
         http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
