@@ -150,3 +150,4 @@ Gerar URL temporária: GET /api/v1/albums/{id}/images/{imageId}/url
 
 
 
+
