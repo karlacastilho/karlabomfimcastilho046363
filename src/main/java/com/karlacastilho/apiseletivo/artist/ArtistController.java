@@ -3,11 +3,11 @@ package com.karlacastilho.apiseletivo.artist;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+import com.karlacastilho.apiseletivo.artist.dto.ArtistResponse;
+import com.karlacastilho.apiseletivo.artist.dto.ArtistMapper;
 
 @RestController
 @RequestMapping("/api/v1/artists")
@@ -21,51 +21,46 @@ public class ArtistController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public Artist create(@Valid @RequestBody ArtistCreateRequest req) {
+    public ArtistResponse create(@Valid @RequestBody ArtistCreateRequest req) {
         Artist a = new Artist();
         a.setName(req.getName());
         a.setType(req.getType());
-        return repo.save(a);
+        return ArtistMapper.toResponse(repo.save(a));
     }
 
     @GetMapping
-    public Page<Artist> list(
+    public Page<ArtistResponse> list(
             @RequestParam(required = false) String name,
             @RequestParam(required = false) ArtistType type,
-            @PageableDefault(sort = "id", direction = Sort.Direction.DESC) Pageable pageable
+            Pageable pageable
     ) {
-
-        // validar campos permitidos para sort
-        pageable.getSort().forEach(order -> {
-            String property = order.getProperty();
-            if (!property.equals("id") && !property.equals("name") && !property.equals("type")) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Campo de ordenação inválido: " + property);
-            }
-        });
-
         boolean hasName = name != null && !name.isBlank();
 
+        Page<Artist> page;
+
         if (type != null && hasName) {
-            return repo.findByTypeAndNameContainingIgnoreCase(type, name, pageable);
+            page = repo.findByTypeAndNameContainingIgnoreCase(type, name, pageable);
+        } else if (type != null) {
+            page = repo.findByType(type, pageable);
+        } else if (hasName) {
+            page = repo.findByNameContainingIgnoreCase(name, pageable);
+        } else {
+            page = repo.findAll(pageable);
         }
-        if (type != null) {
-            return repo.findByType(type, pageable);
-        }
-        if (hasName) {
-            return repo.findByNameContainingIgnoreCase(name, pageable);
-        }
-        return repo.findAll(pageable);
+
+        // converte Artist -> ArtistResponse (não retorna albums)
+        return page.map(a -> new ArtistResponse(a.getId(), a.getName(), a.getType()));
     }
 
     @PutMapping("/{id}")
-    public Artist update(@PathVariable Long id, @Valid @RequestBody ArtistUpdateRequest req) {
+    public ArtistResponse update(@PathVariable Long id, @Valid @RequestBody ArtistUpdateRequest req) {
         Artist artist = repo.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Artista não encontrado"));
 
         artist.setName(req.getName());
         artist.setType(req.getType());
 
-        return repo.save(artist);
+        return ArtistMapper.toResponse(repo.save(artist));
     }
 
     @DeleteMapping("/{id}")

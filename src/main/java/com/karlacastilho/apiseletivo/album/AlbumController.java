@@ -13,13 +13,17 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
+import com.karlacastilho.apiseletivo.album.dto.AlbumResponse;
+import com.karlacastilho.apiseletivo.album.dto.ArtistSummary;
+import com.karlacastilho.apiseletivo.album.dto.AlbumMapper;
+import com.karlacastilho.apiseletivo.album.dto.AlbumImageMapper;
+import com.karlacastilho.apiseletivo.album.dto.AlbumImageResponse;
 
 import java.time.Duration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/albums")
@@ -46,7 +50,7 @@ public class AlbumController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public Album create(@Valid @RequestBody AlbumCreateRequest req) {
+    public AlbumResponse create(@Valid @RequestBody AlbumCreateRequest req) {
         List<Artist> artists = artistRepo.findAllById(req.getArtistIds());
         if (artists.size() != req.getArtistIds().size()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Um ou mais artistIds não existem");
@@ -64,7 +68,7 @@ public class AlbumController {
         }
         artistRepo.saveAll(artists);
 
-        return saved;
+        return AlbumMapper.toResponse(albumRepo.save(album));
     }
 
     /**
@@ -72,14 +76,24 @@ public class AlbumController {
      * Pode sobrescrever com ?sort=id,desc por exemplo.
      */
     @GetMapping
-    public Page<Album> list(
+    public Page<AlbumResponse> list(
             @RequestParam(required = false) Long artistId,
             @PageableDefault(size = 10, sort = "title", direction = Sort.Direction.ASC) Pageable pageable
     ) {
+        Page<Album> page;
         if (artistId != null) {
-            return albumRepo.findByArtists_Id(artistId, pageable);
+            page = albumRepo.findByArtists_Id(artistId, pageable);
+        } else {
+            page = albumRepo.findAll(pageable);
         }
-        return albumRepo.findAll(pageable);
+
+        return page.map(album -> new AlbumResponse(
+                album.getId(),
+                album.getTitle(),
+                album.getArtists().stream()
+                        .map(a -> new ArtistSummary(a.getId(), a.getName(), a.getType()))
+                        .toList()
+        ));
     }
 
     @PutMapping("/{id}")
@@ -115,14 +129,14 @@ public class AlbumController {
     // -------------------------
 
     @PutMapping(value = "/{id}/cover", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public Album updateCover(@PathVariable Long id, @RequestPart("file") MultipartFile file) {
+    public AlbumResponse updateCover(@PathVariable Long id, @RequestPart("file") MultipartFile file) {
         Album album = albumRepo.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Álbum não encontrado"));
 
         String objectKey = coverStorage.uploadCover(id, file);
         album.setCoverObjectKey(objectKey);
 
-        return albumRepo.save(album);
+        return AlbumMapper.toResponse(albumRepo.save(album));
     }
 
     @GetMapping("/{id}/cover-url")
@@ -143,7 +157,7 @@ public class AlbumController {
     // -------------------------
 
     @PutMapping(value = "/{id}/images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public List<AlbumImage> uploadImages(@PathVariable Long id, @RequestPart("files") List<MultipartFile> files) {
+    public List<AlbumImageResponse> uploadImages(@PathVariable Long id, @RequestPart("files") List<MultipartFile> files) {
         Album album = albumRepo.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Álbum não encontrado"));
 
@@ -151,22 +165,26 @@ public class AlbumController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Envie pelo menos 1 arquivo em 'files'");
         }
 
-        return files.stream().map(f -> {
-            String objectKey = coverStorage.uploadAlbumImage(id, f);
-
-            AlbumImage img = new AlbumImage();
-            img.setAlbum(album);
-            img.setObjectKey(objectKey);
-            return albumImageRepo.save(img);
-        }).collect(Collectors.toList());
+        return files.stream()
+                .map(f -> {
+                    String objectKey = coverStorage.uploadAlbumImage(id, f);
+                    AlbumImage img = new AlbumImage();
+                    img.setAlbum(album);
+                    img.setObjectKey(objectKey);
+                    return albumImageRepo.save(img);
+                })
+                .map(AlbumImageMapper::toResponse)
+                .toList();
     }
 
     @GetMapping("/{id}/images")
-    public List<AlbumImage> listImages(@PathVariable Long id) {
+    public List<AlbumImageResponse> listImages(@PathVariable Long id) {
         albumRepo.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Álbum não encontrado"));
 
-        return albumImageRepo.findByAlbum_Id(id);
+        return albumImageRepo.findByAlbum_Id(id).stream()
+                .map(AlbumImageMapper::toResponse)
+                .toList();
     }
 
     @GetMapping("/{id}/images/{imageId}/url")
