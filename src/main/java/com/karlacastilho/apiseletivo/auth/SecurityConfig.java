@@ -4,13 +4,17 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import com.karlacastilho.apiseletivo.config.RateLimitFilter;
+
 
 @Configuration
+@EnableWebSecurity
 public class SecurityConfig {
 
     @Bean
@@ -35,7 +39,7 @@ public class SecurityConfig {
                                 "/api/v1/auth/**",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
-                                "/actuator/health"
+                                "/actuator/**"
                         ).permitAll()
 
                         // TODOS os GET são públicos
@@ -45,8 +49,11 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 );
 
-        // adiciona filtro JWT
+        // rate limit antes do JWT
         http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+
+        // filtro JWT
+        http.addFilterAfter(new RateLimitFilter(), JwtAuthFilter.class);
 
         return http.build();
     }
