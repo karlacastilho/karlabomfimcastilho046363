@@ -39,3 +39,9 @@ app:
 
 springdoc:
   default-flat-param-object: true
+
+endpoint:
+  health:
+    probes:
+      enabled: true
+    show-details: when_authorized
