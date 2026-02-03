@@ -1,4 +1,7 @@
 # API Seletivo - Catálogo de Artistas e Álbuns (Spring Boot + Postgres + MinIO)
+### Nome: Karla Bomfim Castilho
+### Inscrição: 16335
+### Vaga: Back-End (Engenheiro da Computação)
 
 
 Este projeto implementa uma API REST versionada (`/api/v1`) para cadastro e consulta de **artistas** (cantor/banda) e **álbuns**, com:
