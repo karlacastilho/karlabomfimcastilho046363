@@ -18,6 +18,11 @@ import com.karlacastilho.apiseletivo.album.dto.ArtistSummary;
 import com.karlacastilho.apiseletivo.album.dto.AlbumMapper;
 import com.karlacastilho.apiseletivo.album.dto.AlbumImageMapper;
 import com.karlacastilho.apiseletivo.album.dto.AlbumImageResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 
 import java.time.Duration;
 import java.util.HashSet;
@@ -25,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+@Tag(name = "Albums", description = "Operações de cadastro e consulta de álbuns")
 @RestController
 @RequestMapping("/api/v1/albums")
 public class AlbumController {
@@ -71,13 +77,19 @@ public class AlbumController {
         return AlbumMapper.toResponse(albumRepo.save(album));
     }
 
-    /**
-     * GET público com paginação e ordenação padrão: title ASC
-     * Pode sobrescrever com ?sort=id,desc por exemplo.
-     */
+    @Operation(
+            summary = "Listar álbuns",
+            description = "Lista álbuns com paginação. Pode filtrar por artistId. Ordenação padrão: title,asc."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Lista retornada")
+    })
     @GetMapping
     public Page<AlbumResponse> list(
+            @Parameter(description = "Filtrar por ID do artista", example = "1")
             @RequestParam(required = false) Long artistId,
+
+            @Parameter(hidden = true)
             @PageableDefault(size = 10, sort = "title", direction = Sort.Direction.ASC) Pageable pageable
     ) {
         Page<Album> page;
