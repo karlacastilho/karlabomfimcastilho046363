@@ -149,7 +149,36 @@ Gerar URL temporária: GET /api/v1/albums/{id}/images/{imageId}/url
 - Docker Compose para isolamento completo do ambiente.
 - GET público e escrita protegida para melhor experiência e segurança.
 
+## Decisões de escopo e priorização
 
+Durante o desenvolvimento do projeto, optei por priorizar a implementação completa e consistente dos requisitos fundamentais da aplicação, garantindo:
+
+- Arquitetura organizada em camadas;
+- Segurança com JWT Stateless;
+- Rate limiting;
+- CORS configurado;
+- Armazenamento externo via MinIO com presigned URLs;
+- Paginação e ordenação;
+- Versionamento de Banco com Flyway;
+- Containerização total com Docker Compose;
+- Documentação via OpenAPI/Swagger;
+- Health check com Actuator.
+
+Alguns requisitos avançados não foram implementados nesta versão por decisão estratégica de priorização do escopo. Abaixo explico cada um deles:
+
+1) Testes Unitários e de Integração:
+Embora a estrutura da aplicação esteja preparada para testes (com separação de camadas e DTOs desacoplados), optei por concentrar esforçoes na consolidação da arquitetura, segurança e infraestrutura.
+A estrutura atual permite facilmente inclusão desses testes.
+2) WebSocket: 
+O requisito de WebSocket foi analisado, porém o domínio principal da aplicação (gestão de artistas e álbuns) não exige comunicação em tempo real para seu funcionamento básico.
+A implementação de WebSocket seria aplicável em cenários como:
+   - Notificação em tempo real dos novos álbuns;
+   - Atualizações em dashboards administrativos.
+     Como o foco desta entrega foi consolidar a arquitetura REST robusta, a funcionalidade de WebSocket foi considerada uma extensão futura.
+3) Endpoint de Regionais e Sincronização:
+A integração com endpoint externo de regionais envolveria consumo de API externa, sincronização incremental e controle de versionamento lógico (ativo/inativo).
+Por envolver dependência externa e lógica adicional de sincronização, foi priorizada a estabilidade dos módulos centrais da aplicação.
+A arquitetura atual permite adicionar facilmente esse módulo em uma próxima etapa, inclusive com abordagem orientada a eventos ou jobs agendados.
 
 
 
